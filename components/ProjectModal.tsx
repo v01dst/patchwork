@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { Project } from '@/types';
 import { X, Loader2 } from 'lucide-react';
+import { createProjectAction, updateProjectAction } from '@/app/actions/projects';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -14,43 +15,37 @@ interface ProjectModalProps {
 export function ProjectModal({ isOpen, onClose, onSuccess, initialData }: ProjectModalProps) {
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError('Project name is required');
       return;
     }
 
-    setLoading(true);
     setError(null);
 
-    try {
-      const url = initialData ? `/api/projects/${initialData.id}` : '/api/projects';
-      const method = initialData ? 'PATCH' : 'POST';
+    startTransition(async () => {
+      try {
+        const res = initialData
+          ? await updateProjectAction(initialData.id, { name, description })
+          : await createProjectAction({ name, description });
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description }),
-      });
+        if (res.error || !res.data) {
+          setError(res.error || 'Failed to save project');
+          return;
+        }
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.message || 'Failed to save project');
+        onSuccess(res.data);
+        onClose();
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred');
       }
-
-      onSuccess(json.data);
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -112,10 +107,10 @@ export function ProjectModal({ isOpen, onClose, onSuccess, initialData }: Projec
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={isPending}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition disabled:opacity-50"
             >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               {initialData ? 'Save Changes' : 'Create Project'}
             </button>
           </div>

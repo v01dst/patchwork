@@ -2,19 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ProjectWithStats, Project } from '@/types';
+import { ProjectWithStats } from '@/types';
 import { Navbar } from '@/components/Navbar';
 import { ProjectModal } from '@/components/ProjectModal';
-import { formatDateTime } from '@/lib/utils';
+import { getProjectsAction } from '@/app/actions/projects';
 import {
   Layers,
   FolderKanban,
   CheckCircle2,
-  Clock,
   AlertCircle,
   Plus,
   ArrowRight,
-  TrendingUp,
   Search,
 } from 'lucide-react';
 
@@ -27,10 +25,9 @@ export default function DashboardPage() {
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/projects');
-      const json = await res.json();
-      if (json.data) {
-        setProjects(json.data);
+      const res = await getProjectsAction();
+      if (res.data) {
+        setProjects(res.data);
       }
     } catch (err) {
       console.error('Failed to load projects:', err);
@@ -48,7 +45,6 @@ export default function DashboardPage() {
     (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Overall workspace stats
   const totalProjects = projects.length;
   const totalTasks = projects.reduce((acc, p) => acc + (p.stats?.total_tasks || 0), 0);
   const totalCompleted = projects.reduce((acc, p) => acc + (p.stats?.completed_tasks || 0), 0);
@@ -59,13 +55,13 @@ export default function DashboardPage() {
       <Navbar onNewProject={() => setIsModalOpen(true)} />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Workspace Hero / Summary */}
+        {/* Workspace Summary */}
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Developer Workspace
           </h1>
           <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1">
-            Real-time project tracking, Kanban workflows, and audit-grade activity logging.
+            Real-time project tracking, Kanban workflows, and audit-grade activity logging powered by Next.js Server Actions.
           </p>
         </div>
 
@@ -254,7 +250,7 @@ export default function DashboardPage() {
       <ProjectModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSuccess={(newProject) => {
+        onSuccess={() => {
           fetchProjects();
         }}
       />

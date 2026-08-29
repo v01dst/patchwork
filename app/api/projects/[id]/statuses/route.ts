@@ -1,7 +1,16 @@
+/**
+ * NOTE: This Route Handler is an optional, protected external-integration surface.
+ * It is NOT used by the Patchwork frontend application (which uses Next.js Server Actions).
+ * External clients must authenticate via PATCHWORK_API_SECRET.
+ */
 import { NextResponse } from 'next/server';
 import { getStatusesByProject, createStatus, reorderStatuses } from '@/lib/db';
+import { requireApiSecret } from '@/lib/auth';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = requireApiSecret(request);
+  if (!auth.authorized) return auth.response!;
+
   try {
     const { id } = await params;
     const statuses = await getStatusesByProject(id);
@@ -13,6 +22,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = requireApiSecret(request);
+  if (!auth.authorized) return auth.response!;
+
   try {
     const { id: projectId } = await params;
     const body = await request.json();
@@ -30,6 +42,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = requireApiSecret(request);
+  if (!auth.authorized) return auth.response!;
+
   try {
     const { id: projectId } = await params;
     const body = await request.json();

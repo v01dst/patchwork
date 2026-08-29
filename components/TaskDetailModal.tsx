@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Task, Status, Activity } from '@/types';
 import { formatDate, getPriorityColor, cn } from '@/lib/utils';
 import { X, Calendar, User, Tag as TagIcon, Clock, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { getActivityByTaskAction } from '@/app/actions/activity';
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -28,10 +29,9 @@ export function TaskDetailModal({
   useEffect(() => {
     if (task && isOpen) {
       setLoadingActivities(true);
-      fetch(`/api/tasks/${task.id}/activity`)
-        .then(res => res.json())
-        .then(json => {
-          if (json.data) setActivities(json.data);
+      getActivityByTaskAction(task.id)
+        .then(res => {
+          if (res.data) setActivities(res.data);
         })
         .catch(err => console.error('Failed to load task activities:', err))
         .finally(() => setLoadingActivities(false));

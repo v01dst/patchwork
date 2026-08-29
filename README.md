@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20RLS-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-13%20Passing-brightgreen?style=for-the-badge&logo=node.js)](https://nodejs.org/)
+[![Tests](https://img.shields.io/badge/Tests-17%20Passing-brightgreen?style=for-the-badge&logo=node.js)](https://nodejs.org/)
 
 <br/>
 
@@ -25,7 +25,7 @@
 
 ## 📑 Table of Contents
 - [✨ Key Features](#-key-features)
-- [🏗️ System Architecture & Stack Rationale](#️-system-architecture--stack-rationale)
+- [🛡️ Security Architecture & Server Actions Data Flow](#️-security-architecture--server-actions-data-flow)
 - [📊 Database Schema & Security](#-database-schema--security)
 - [⚡ Quick Start & Local Setup](#-quick-start--local-setup)
 - [🧪 Automated Test Suite](#-automated-test-suite)
@@ -41,12 +41,11 @@
 - Real-time aggregate dashboard displaying total projects, active tasks, completion rate, and overdue task count.
 
 ### 2. 📋 Interactive Kanban Board (`@dnd-kit`)
-- Multi-column drag-and-drop workflow with smooth physics and optimistic UI updates.
-- Automatic rollback on server-side or network rejections.
-- Fully accessible keyboard navigation and touch-optimized sensor configuration.
+- Multi-column drag-and-drop workflow powered by Next.js Server Actions with optimistic UI updates and instant rollback on failure.
+- Accessible keyboard navigation and touch-optimized sensor configuration.
 
 ### 3. ⚙️ Dynamic & Configurable Status Columns
-- Pre-seeded with `Backlog` → `Todo` → `In Progress` → `Review` → `Done` on project creation.
+- Defaults to `Backlog` → `Todo` → `In Progress` → `Review` → `Done` on project creation.
 - Add new custom status columns, pick custom palette colors, rename, and delete columns.
 - **Zero-Orphan Deletion**: Deleting a status column safely moves its tasks to the fallback column automatically.
 
@@ -71,43 +70,53 @@
 
 ---
 
-## 🏗️ System Architecture & Stack Rationale
+## 🛡️ Security Architecture & Server Actions Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Patchwork Web App                      │
-│        (Next.js 15 App Router + React 19 + Tailwind)        │
-└───────────────┬─────────────────────────────┬───────────────┘
-                │                             │
-        (Client Components)           (Route Handlers)
-      • Kanban (@dnd-kit)             • /api/projects
-      • TaskModal / Filters           • /api/tasks (Audit Log)
-      • Optimistic State Sync         • /api/statuses (Reorder)
-                │                             │
-                └──────────────┬──────────────┘
-                               │ (Service Role Key)
+│                    Browser / Client UI                      │
+│      (Zero Secrets, No Service Role Key, No Direct Fetch)   │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                      Next.js Server Actions
+                 ('use server' RPC invocation)
+                               │
                                ▼
-            ┌────────────────────────────────────┐
-            │       Supabase (PostgreSQL)        │
-            │   • Strict Row-Level Security      │
-            │   • Foreign Keys & Cascades        │
-            │   • Indexed Audit & Activity Logs  │
-            └────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   Next.js Server Runtime                    │
+│      • Server Actions (app/actions/*.ts)                    │
+│      • Reusable Input Validation (lib/constants, overdue)   │
+│      • Transactional Activity Logging (lib/db.ts)           │
+│      • Service Role Supabase Client (lib/supabase.ts)       │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                 Internal Postgres Connection (Bypasses RLS)
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Supabase (PostgreSQL)                     │
+│      • RLS Enabled on ALL tables (Public/Anon Denied)       │
+│      • Foreign Keys & Cascade Deletions                     │
+│      • Unique Order Constraints & High-Speed Indexes        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-| Technology | Justification |
-| :--- | :--- |
-| **Next.js (App Router)** | Unifies serverless API Route Handlers under `/app/api` and client UI in a single deployable repository on Vercel without separate microservices. |
-| **Supabase (PostgreSQL)** | Enterprise-grade relational integrity with foreign keys, cascading deletions, unique order constraints, and strict Row-Level Security. |
-| **@dnd-kit** | Modern, modular drag-and-drop toolkit with pointer/touch sensors, clean abstractions, and superior accessibility over deprecated alternatives like `react-beautiful-dnd`. |
-| **Tailwind CSS** | Fast, zero-runtime utility styling with native dark-mode tokenization and mobile-first breakpoint utilities. |
-| **Node.js Test Runner** | Lightweight, zero-dependency built-in testing engine for lightning-fast CI/CD runs. |
+### Security Guarantees:
+1. **Zero Browser Secret Exposure**:
+   - `SUPABASE_SERVICE_ROLE_KEY` and `PATCHWORK_API_SECRET` are never exposed to the client or bundled into client JavaScript.
+   - All client interactions invoke Next.js **Server Actions** directly (`app/actions/*`).
+   - Direct browser calls to `/api/*` are **not** part of normal application operation.
+2. **External Integration API Surface (`/app/api/*`)**:
+   - The `/app/api/*` Route Handlers exist strictly as an optional, protected integration surface for external non-browser tools/scripts.
+   - Protected via `requireApiSecret` checking `PATCHWORK_API_SECRET` (`Authorization: Bearer <secret>` or `x-patchwork-api-key`).
+3. **Database-Level Protection**:
+   - Row-Level Security (RLS) is enabled on all tables, denying anonymous/public access at the Postgres engine level.
 
 ---
 
 ## 📊 Database Schema & Security
 
-Managed exclusively via `supabase/migrations/20260829000000_init_patchwork.sql`:
+Managed via `supabase/migrations/20260829000000_init_patchwork.sql`:
 
 ```sql
 -- Core Tables
@@ -119,8 +128,6 @@ task_tags  (task_id FK, tag_id FK, PK(task_id, tag_id))
 activity   (id uuid PK, task_id FK, project_id FK, field text, old_value text, new_value text, description text)
 notes      (id uuid PK, project_id FK, content text, created_at)
 ```
-
-> **🔒 Security Note**: All tables have **Row Level Security (RLS)** enabled and public access denied. All reads and writes are routed through server-side Next.js route handlers using the Supabase Service Role Key.
 
 ---
 
@@ -142,6 +149,7 @@ Fill in your Supabase credentials:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+PATCHWORK_API_SECRET=your-optional-external-api-secret
 ```
 
 ### 3. Run Database Migrations
@@ -161,13 +169,17 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 🧪 Automated Test Suite
 
-Run the automated test suite covering overdue calculation, transactional activity logging, and API input validation:
+Run the automated test suite covering Server Actions, overdue calculation, transactional activity logging, and API input validation:
 
 ```bash
 npm test
 ```
 
 ```
+# Subtest: Server Actions Data Flow & Validation
+  ok 1 - Server Action moves task status without fetch and returns typed data
+  ok 2 - Server Action automatically generates transactional activity log
+  ok 3 - Server Action returns error for invalid task ID
 # Subtest: Activity Diff Calculation Logic
   ok 1 - records audit log on status movement
   ok 2 - records multiple field changes accurately
@@ -182,7 +194,7 @@ npm test
   ok 1 - validates allowed priorities correctly
   ok 2 - validates date format parsing
 
-13 passing (100% green)
+17 passing (100% green)
 ```
 
 ---

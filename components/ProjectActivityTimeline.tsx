@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Activity } from '@/types';
 import { Clock, RefreshCw } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
+import { getActivityByProjectAction } from '@/app/actions/activity';
 
 interface ProjectActivityTimelineProps {
   projectId: string;
@@ -16,9 +17,8 @@ export function ProjectActivityTimeline({ projectId }: ProjectActivityTimelinePr
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/activity`);
-      const json = await res.json();
-      if (json.data) setActivities(json.data);
+      const res = await getActivityByProjectAction(projectId);
+      if (res.data) setActivities(res.data);
     } catch (err) {
       console.error('Failed to load project activities:', err);
     } finally {

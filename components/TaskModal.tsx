@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { Task, Status, Priority } from '@/types';
 import { ALLOWED_PRIORITIES } from '@/lib/constants';
 import { X, Loader2, Calendar, User, Tag as TagIcon, AlertCircle } from 'lucide-react';
+import { createTaskAction, updateTaskAction } from '@/app/actions/tasks';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ export function TaskModal({
   const [assignee, setAssignee] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [tagsInput, setTagsInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export function TaskModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError('Task title is required');
@@ -68,7 +69,6 @@ export function TaskModal({
       return;
     }
 
-    setLoading(true);
     setError(null);
 
     const tagsArray = tagsInput
@@ -86,30 +86,23 @@ export function TaskModal({
       tags: tagsArray,
     };
 
-    try {
-      const url = initialData
-        ? `/api/tasks/${initialData.id}`
-        : `/api/projects/${projectId}/tasks`;
-      const method = initialData ? 'PATCH' : 'POST';
+    startTransition(async () => {
+      try {
+        const res = initialData
+          ? await updateTaskAction(initialData.id, payload)
+          : await createTaskAction(projectId, payload);
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+        if (res.error || !res.data) {
+          setError(res.error || 'Failed to save task');
+          return;
+        }
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.message || 'Failed to save task');
+        onSuccess(res.data);
+        onClose();
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred');
       }
-
-      onSuccess(json.data);
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -248,10 +241,10 @@ export function TaskModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={isPending}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition disabled:opacity-50"
             >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               {initialData ? 'Save Changes' : 'Create Task'}
             </button>
           </div>

@@ -1,8 +1,17 @@
+/**
+ * NOTE: This Route Handler is an optional, protected external-integration surface.
+ * It is NOT used by the Patchwork frontend application (which uses Next.js Server Actions).
+ * External clients must authenticate via PATCHWORK_API_SECRET.
+ */
 import { NextResponse } from 'next/server';
 import { getTaskById, updateTask, deleteTask } from '@/lib/db';
 import { ALLOWED_PRIORITIES } from '@/lib/constants';
+import { requireApiSecret } from '@/lib/auth';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = requireApiSecret(request);
+  if (!auth.authorized) return auth.response!;
+
   try {
     const { id } = await params;
     const task = await getTaskById(id);
@@ -17,6 +26,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = requireApiSecret(request);
+  if (!auth.authorized) return auth.response!;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -42,6 +54,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = requireApiSecret(request);
+  if (!auth.authorized) return auth.response!;
+
   try {
     const { id } = await params;
     await deleteTask(id);

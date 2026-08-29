@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { Note } from '@/types';
 import { StickyNote, Plus, Trash2, Loader2, Calendar } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
+import { getNotesByProjectAction, createNoteAction, deleteNoteAction } from '@/app/actions/notes';
 
 interface NotesPanelProps {
   projectId: string;
@@ -13,14 +14,13 @@ export function NotesPanel({ projectId }: NotesPanelProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const fetchNotes = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/notes`);
-      const json = await res.json();
-      if (json.data) setNotes(json.data);
+      const res = await getNotesByProjectAction(projectId);
+      if (res.data) setNotes(res.data);
     } catch (err) {
       console.error('Failed to load notes:', err);
     } finally {
@@ -32,33 +32,29 @@ export function NotesPanel({ projectId }: NotesPanelProps) {
     fetchNotes();
   }, [projectId]);
 
-  const handleAddNote = async (e: React.FormEvent) => {
+  const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
 
-    setSubmitting(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-      const json = await res.json();
-      if (json.data) {
-        setNotes([json.data, ...notes]);
-        setContent('');
+    startTransition(async () => {
+      try {
+        const res = await createNoteAction(projectId, content);
+        if (res.data) {
+          setNotes([res.data, ...notes]);
+          setContent('');
+        }
+      } catch (err) {
+        console.error('Failed to add note:', err);
       }
-    } catch (err) {
-      console.error('Failed to add note:', err);
-    } finally {
-      setSubmitting(false);
-    }
+    });
   };
 
   const handleDeleteNote = async (id: string) => {
     try {
-      await fetch(`/api/notes/${id}`, { method: 'DELETE' });
-      setNotes(notes.filter(n => n.id !== id));
+      const res = await deleteNoteAction(id);
+      if (res.data) {
+        setNotes(notes.filter(n => n.id !== id));
+      }
     } catch (err) {
       console.error('Failed to delete note:', err);
     }
@@ -82,10 +78,10 @@ export function NotesPanel({ projectId }: NotesPanelProps) {
         <div className="flex justify-end mt-2">
           <button
             type="submit"
-            disabled={submitting || !content.trim()}
+            disabled={isPending || !content.trim()}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition shadow-xs"
           >
-            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             <span>Add Note</span>
           </button>
         </div>

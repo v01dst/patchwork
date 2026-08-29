@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProjectWithStats, Status, Task, Priority } from '@/types';
 import { Navbar } from '@/components/Navbar';
@@ -11,6 +11,9 @@ import { StatusModal } from '@/components/StatusModal';
 import { ProjectModal } from '@/components/ProjectModal';
 import { NotesPanel } from '@/components/NotesPanel';
 import { ProjectActivityTimeline } from '@/components/ProjectActivityTimeline';
+import { getProjectByIdAction, deleteProjectAction } from '@/app/actions/projects';
+import { getStatusesByProjectAction, deleteStatusAction } from '@/app/actions/statuses';
+import { getTasksByProjectAction, updateTaskAction, deleteTaskAction } from '@/app/actions/tasks';
 import {
   FolderKanban,
   CheckCircle2,
@@ -36,6 +39,7 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
 
   // Filters & Search
   const [search, setSearch] = useState('');
@@ -56,26 +60,20 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
 
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 
-  // Active Tab: Kanban vs Notes / Activity
+  // Active View Tab
   const [activeView, setActiveView] = useState<'board' | 'notes' | 'activity'>('board');
 
   const fetchProjectData = async () => {
     try {
       const [pRes, sRes, tRes] = await Promise.all([
-        fetch(`/api/projects/${projectId}`),
-        fetch(`/api/projects/${projectId}/statuses`),
-        fetch(`/api/projects/${projectId}/tasks`),
+        getProjectByIdAction(projectId),
+        getStatusesByProjectAction(projectId),
+        getTasksByProjectAction(projectId),
       ]);
 
-      const [pJson, sJson, tJson] = await Promise.all([
-        pRes.json(),
-        sRes.json(),
-        tRes.json(),
-      ]);
-
-      if (pJson.data) setProject(pJson.data);
-      if (sJson.data) setStatuses(sJson.data);
-      if (tJson.data) setTasks(tJson.data);
+      if (pRes.data) setProject(pRes.data);
+      if (sRes.data) setStatuses(sRes.data);
+      if (tRes.data) setTasks(tRes.data);
     } catch (err) {
       console.error('Failed to load project data:', err);
     } finally {
@@ -92,25 +90,19 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
     const originalTasks = [...tasks];
     const targetStatus = statuses.find(s => s.id === targetStatusId);
 
-    // Optimistic Update
+    // Optimistic UI Update immediately in state
     setTasks(prev =>
       prev.map(t => (t.id === taskId ? { ...t, status_id: targetStatusId, status: targetStatus } : t))
     );
 
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status_id: targetStatusId }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.message || 'Failed to update task status');
+      const res = await updateTaskAction(taskId, { status_id: targetStatusId });
+      if (res.error || !res.data) {
+        throw new Error(res.error || 'Failed to update task status');
       }
 
       // Update with server confirmed task & refresh project stats
-      setTasks(prev => prev.map(t => (t.id === taskId ? json.data : t)));
+      setTasks(prev => prev.map(t => (t.id === taskId ? res.data! : t)));
       fetchProjectData();
     } catch (err: any) {
       console.error('Rollback status change:', err);
@@ -123,9 +115,11 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
   // Delete Task
   const handleDeleteTask = async (taskId: string) => {
     try {
-      await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
-      setTasks(prev => prev.filter(t => t.id !== taskId));
-      fetchProjectData();
+      const res = await deleteTaskAction(taskId);
+      if (res.data) {
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+        fetchProjectData();
+      }
     } catch (err) {
       console.error('Failed to delete task:', err);
     }
@@ -140,14 +134,11 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
 
     if (confirm('Deleting this status column will safely move its tasks to the fallback status column. Proceed?')) {
       try {
-        const res = await fetch(`/api/statuses/${statusId}?projectId=${projectId}`, {
-          method: 'DELETE',
-        });
-        if (res.ok) {
+        const res = await deleteStatusAction(statusId, projectId);
+        if (res.data) {
           fetchProjectData();
         } else {
-          const json = await res.json();
-          alert(json.message || 'Failed to delete status');
+          alert(res.error || 'Failed to delete status');
         }
       } catch (err) {
         console.error('Failed to delete status:', err);
@@ -159,8 +150,10 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
   const handleDeleteProject = async () => {
     if (confirm(`Are you sure you want to completely delete project "${project?.name}" and all its tasks?`)) {
       try {
-        await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
-        router.push('/');
+        const res = await deleteProjectAction(projectId);
+        if (res.data) {
+          router.push('/');
+        }
       } catch (err) {
         console.error('Failed to delete project:', err);
       }
@@ -460,7 +453,7 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
       <TaskModal
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
-        onSuccess={(task) => {
+        onSuccess={() => {
           fetchProjectData();
         }}
         projectId={projectId}

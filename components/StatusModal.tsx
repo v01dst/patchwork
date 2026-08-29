@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { Status } from '@/types';
 import { X, Loader2 } from 'lucide-react';
+import { createStatusAction, updateStatusAction } from '@/app/actions/statuses';
 
 interface StatusModalProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export function StatusModal({
 }: StatusModalProps) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3b82f6');
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,40 +42,32 @@ export function StatusModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError('Status name is required');
       return;
     }
 
-    setLoading(true);
     setError(null);
 
-    try {
-      const url = initialData
-        ? `/api/statuses/${initialData.id}`
-        : `/api/projects/${projectId}/statuses`;
-      const method = initialData ? 'PATCH' : 'POST';
+    startTransition(async () => {
+      try {
+        const res = initialData
+          ? await updateStatusAction(initialData.id, { name, color })
+          : await createStatusAction(projectId, { name, color });
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, color }),
-      });
+        if (res.error || !res.data) {
+          setError(res.error || 'Failed to save status');
+          return;
+        }
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.message || 'Failed to save status');
+        onSuccess(res.data);
+        onClose();
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred');
       }
-
-      onSuccess(json.data);
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -148,10 +141,10 @@ export function StatusModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={isPending}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition disabled:opacity-50"
             >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               {initialData ? 'Save Changes' : 'Add Column'}
             </button>
           </div>
