@@ -7,7 +7,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20RLS-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-17%20Passing-brightgreen?style=for-the-badge&logo=node.js)](https://nodejs.org/)
+[![Tests](https://img.shields.io/badge/Tests-35%20Passing-brightgreen?style=for-the-badge&logo=node.js)](https://nodejs.org/)
+[![npm](https://img.shields.io/npm/v/patchwork-dashboard?style=for-the-badge&logo=npm&label=npm%20package)](https://www.npmjs.com/package/patchwork-dashboard)
 
 <br/>
 
