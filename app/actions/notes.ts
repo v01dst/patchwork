@@ -6,16 +6,16 @@ import {
   deleteNote as dbDeleteNote,
 } from '@/lib/db';
 import { Note } from '@/types';
-import { ActionResult } from './projects';
+import { validateRequiredText } from '@/lib/validate';
+import { ActionResult, toActionError } from './projects';
 
 export async function getNotesByProjectAction(projectId: string): Promise<ActionResult<Note[]>> {
   try {
     if (!projectId) return { error: 'Project ID is required' };
     const notes = await dbGetNotesByProject(projectId);
     return { data: notes };
-  } catch (err: any) {
-    console.error('getNotesByProjectAction error:', err);
-    return { error: err.message || 'Failed to retrieve notes' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to retrieve notes') };
   }
 }
 
@@ -25,14 +25,13 @@ export async function createNoteAction(
 ): Promise<ActionResult<Note>> {
   try {
     if (!projectId) return { error: 'Project ID is required' };
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return { error: 'Note content is required' };
-    }
+    const contentErr = validateRequiredText(content, 'Note content');
+    if (contentErr) return { error: contentErr };
+
     const note = await dbCreateNote(projectId, content);
     return { data: note };
-  } catch (err: any) {
-    console.error('createNoteAction error:', err);
-    return { error: err.message || 'Failed to create note' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to create note') };
   }
 }
 
@@ -41,8 +40,7 @@ export async function deleteNoteAction(id: string): Promise<ActionResult<{ succe
     if (!id) return { error: 'Note ID is required' };
     await dbDeleteNote(id);
     return { data: { success: true } };
-  } catch (err: any) {
-    console.error('deleteNoteAction error:', err);
-    return { error: err.message || 'Failed to delete note' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to delete note') };
   }
 }

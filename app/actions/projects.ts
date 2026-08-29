@@ -6,21 +6,30 @@ import {
   createProject as dbCreateProject,
   updateProject as dbUpdateProject,
   deleteProject as dbDeleteProject,
+  DbError,
 } from '@/lib/db';
 import { ProjectWithStats, Project } from '@/types';
+import { validateRequiredText } from '@/lib/validate';
 
 export type ActionResult<T> = {
   data?: T;
   error?: string;
 };
 
+/** Convert any thrown error into a typed { error } result. */
+export function toActionError(err: unknown, fallback: string): string {
+  if (err instanceof DbError) return err.message;
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error('Server Action error:', msg);
+  return fallback;
+}
+
 export async function getProjectsAction(): Promise<ActionResult<ProjectWithStats[]>> {
   try {
     const projects = await dbGetProjects();
     return { data: projects };
-  } catch (err: any) {
-    console.error('getProjectsAction error:', err);
-    return { error: err.message || 'Failed to retrieve projects' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to retrieve projects') };
   }
 }
 
@@ -34,22 +43,21 @@ export async function getProjectByIdAction(id: string): Promise<ActionResult<Pro
       return { error: 'Project not found' };
     }
     return { data: project };
-  } catch (err: any) {
-    console.error('getProjectByIdAction error:', err);
-    return { error: err.message || 'Failed to retrieve project' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to retrieve project') };
   }
 }
 
 export async function createProjectAction(data: { name: string; description?: string }): Promise<ActionResult<Project>> {
   try {
-    if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
-      return { error: 'Project name is required' };
-    }
+    // Server-side validation, independent of any UI checks.
+    const nameErr = validateRequiredText(data?.name, 'Project name');
+    if (nameErr) return { error: nameErr };
+
     const project = await dbCreateProject(data.name, data.description);
     return { data: project };
-  } catch (err: any) {
-    console.error('createProjectAction error:', err);
-    return { error: err.message || 'Failed to create project' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to create project') };
   }
 }
 
@@ -59,14 +67,14 @@ export async function updateProjectAction(
 ): Promise<ActionResult<Project>> {
   try {
     if (!id) return { error: 'Project ID is required' };
-    if (data.name !== undefined && (typeof data.name !== 'string' || data.name.trim().length === 0)) {
-      return { error: 'Project name cannot be empty' };
+    if (data.name !== undefined) {
+      const nameErr = validateRequiredText(data.name, 'Project name');
+      if (nameErr) return { error: nameErr };
     }
     const updated = await dbUpdateProject(id, data);
     return { data: updated };
-  } catch (err: any) {
-    console.error('updateProjectAction error:', err);
-    return { error: err.message || 'Failed to update project' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to update project') };
   }
 }
 
@@ -75,8 +83,7 @@ export async function deleteProjectAction(id: string): Promise<ActionResult<{ su
     if (!id) return { error: 'Project ID is required' };
     await dbDeleteProject(id);
     return { data: { success: true } };
-  } catch (err: any) {
-    console.error('deleteProjectAction error:', err);
-    return { error: err.message || 'Failed to delete project' };
+  } catch (err) {
+    return { error: toActionError(err, 'Failed to delete project') };
   }
 }
