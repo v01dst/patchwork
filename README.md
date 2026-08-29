@@ -108,7 +108,8 @@
    - Direct browser calls to `/api/*` are **not** part of normal application operation.
 2. **External Integration API Surface (`/app/api/*`)**:
    - The `/app/api/*` Route Handlers exist strictly as an optional, protected integration surface for external non-browser tools/scripts.
-   - Protected via `requireApiSecret` checking `PATCHWORK_API_SECRET` (`Authorization: Bearer <secret>` or `x-patchwork-api-key`).
+   - Protected via a single shared `requireApiSecret` helper (`lib/auth.ts`) checking `PATCHWORK_API_SECRET` (`Authorization: Bearer <secret>` or `x-patchwork-api-key`) on **every** route (projects, tasks, statuses, notes, activity, and their `[id]` variants).
+   - **Fail-closed by design**: if `PATCHWORK_API_SECRET` is not configured, the helper logs a server-side error and rejects every request with `500 Server Configuration Error` — the external surface is disabled entirely, never left open.
 3. **Database-Level Protection**:
    - Row-Level Security (RLS) is enabled on all tables, denying anonymous/public access at the Postgres engine level.
 
@@ -149,8 +150,10 @@ Fill in your Supabase credentials:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-PATCHWORK_API_SECRET=your-optional-external-api-secret
+PATCHWORK_API_SECRET=your-external-api-secret
 ```
+
+> ⚠️ **`PATCHWORK_API_SECRET` is REQUIRED for the optional external `/api/*` surface to function at all** — not just recommended. If it is omitted, every `/api/*` route handler **rejects all requests with a `500 Server Configuration Error`** (fail-closed). Omitting it intentionally *disables* the external API surface entirely — it never silently opens it. The app's own UI is unaffected: it communicates via Next.js **Server Actions**, not `/api/*`.
 
 ### 3. Run Database Migrations
 Run the SQL migration located at `supabase/migrations/20260829000000_init_patchwork.sql` in your Supabase SQL Editor or push via Supabase CLI:
