@@ -6,23 +6,10 @@ import {
   createProject as dbCreateProject,
   updateProject as dbUpdateProject,
   deleteProject as dbDeleteProject,
-  DbError,
 } from '@/lib/db';
 import { ProjectWithStats, Project } from '@/types';
 import { validateRequiredText } from '@/lib/validate';
-
-export type ActionResult<T> = {
-  data?: T;
-  error?: string;
-};
-
-/** Convert any thrown error into a typed { error } result. */
-export function toActionError(err: unknown, fallback: string): string {
-  if (err instanceof DbError) return err.message;
-  const msg = err instanceof Error ? err.message : String(err);
-  console.error('Server Action error:', msg);
-  return fallback;
-}
+import { ActionResult, toActionError } from '@/lib/action-result';
 
 export async function getProjectsAction(): Promise<ActionResult<ProjectWithStats[]>> {
   try {

@@ -392,7 +392,7 @@ export async function createTask(
     description?: string;
     status_id: string;
     priority?: Priority;
-    assignee?: string;
+    assignee?: string | null;
     due_date?: string | null;
     tags?: string[];
   }
@@ -463,14 +463,16 @@ export async function updateTask(
 
   const { payload, activities } = computeTaskDiff(oldTask, updates);
 
-  // Decorate status activity entries with human-readable names.
+  // Decorate status activity entries with human-readable names. Status diffs
+  // always carry string status ids (see lib/task-diff.js), so the index access
+  // is safe after narrowing to string.
   const decoratedActivities = activities.map(a =>
     a.field === 'status'
       ? {
           ...a,
-          old_value: statusNames[a.old_value] || a.old_value,
-          new_value: statusNames[a.new_value] || a.new_value,
-          description: `Moved status from ${statusNames[a.old_value] || a.old_value} to ${statusNames[a.new_value] || a.new_value}`,
+          old_value: statusNames[a.old_value as string] || a.old_value,
+          new_value: statusNames[a.new_value as string] || a.new_value,
+          description: `Moved status from ${statusNames[a.old_value as string] || a.old_value} to ${statusNames[a.new_value as string] || a.new_value}`,
         }
       : a
   );

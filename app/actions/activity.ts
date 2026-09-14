@@ -5,7 +5,7 @@ import {
   getActivityByTask as dbGetActivityByTask,
 } from '@/lib/db';
 import { Activity } from '@/types';
-import { ActionResult } from './projects';
+import { ActionResult } from '@/lib/action-result';
 
 export async function getActivityByProjectAction(
   projectId: string,

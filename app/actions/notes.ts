@@ -7,7 +7,7 @@ import {
 } from '@/lib/db';
 import { Note } from '@/types';
 import { validateRequiredText } from '@/lib/validate';
-import { ActionResult, toActionError } from './projects';
+import { ActionResult, toActionError } from '@/lib/action-result';
 
 export async function getNotesByProjectAction(projectId: string): Promise<ActionResult<Note[]>> {
   try {

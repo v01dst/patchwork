@@ -6,7 +6,6 @@ import {
   createTask as dbCreateTask,
   updateTask as dbUpdateTask,
   deleteTask as dbDeleteTask,
-  DbError,
 } from '@/lib/db';
 import {
   ALLOWED_PRIORITIES,
@@ -14,10 +13,7 @@ import {
   validateStatusBelongsToProject,
 } from '@/lib/validate';
 import { Task, Priority } from '@/types';
-import { ActionResult, toActionError } from './projects';
-
-// Re-export for convenience so callers can branch on validation failures.
-export { DbError };
+import { ActionResult, toActionError } from '@/lib/action-result';
 
 export async function getTasksByProjectAction(projectId: string): Promise<ActionResult<Task[]>> {
   try {
@@ -47,7 +43,7 @@ export async function createTaskAction(
     description?: string;
     status_id: string;
     priority?: Priority;
-    assignee?: string;
+    assignee?: string | null;
     due_date?: string | null;
     tags?: string[];
   }

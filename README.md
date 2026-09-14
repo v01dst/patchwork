@@ -53,6 +53,9 @@ npx patchwork-dashboard init my-board
 # or install globally
 npm install -g patchwork-dashboard
 patchwork-dashboard init my-board
+
+# or run the CLI straight from a clone of this repo
+node cli.js init my-board
 ```
 
 The CLI copies the complete app, creates your `.env.local`, offers to run `npm install`, and prints the exact remaining steps (create a Supabase project → run the 2 migrations → paste your keys → `npm run dev`).
